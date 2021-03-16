@@ -3,12 +3,13 @@ import numpy as np
 import collections
 from random import random, randint
 import math
+from math import sqrt
 import seaborn as sns
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 
 PLOT_INTEGRATION_CST = 100
-BUCKETS = [7, 7, 20, 20]
+BUCKETS = [9, 9, 30, 30]
 DISCOUNT_RATE = 0.90
 MIN_EPSILON = 0.1
 MAX_LR = 0.1
@@ -16,11 +17,11 @@ MIN_LR = 0.005
 DECAY = 0.7
 NUM_ITER = 10000
 MAX_TIME = 300
-REPLAY_RATE = 3
+EPOCHS = 3
 
 class CartpoleAgentQ():
     def __init__(self, buckets=BUCKETS, min_lr=MIN_LR, max_lr=MAX_LR, discount_rate=DISCOUNT_RATE,
-                 min_epsilon=MIN_EPSILON, decay=DECAY, num_iter=NUM_ITER, replay_rate=REPLAY_RATE, max_time=MAX_TIME):
+                 min_epsilon=MIN_EPSILON, decay=DECAY, num_iter=NUM_ITER, epochs=EPOCHS, max_time=MAX_TIME):
         self.buckets = buckets
         self.min_lr = min_lr
         self.max_lr = max_lr
@@ -37,10 +38,9 @@ class CartpoleAgentQ():
             self.decay = DECAY
 
         self.episode_memory = []
-        self.replay_rate = replay_rate
+        self.epochs = epochs
 
     def discretise(self, obs):
-
         upper_bounds = [self.env.observation_space.high[0], 0.5, self.env.observation_space.high[2],
                         math.radians(50) / 1.]
         lower_bounds = [self.env.observation_space.low[0], -0.5, self.env.observation_space.low[2],
@@ -92,7 +92,7 @@ class CartpoleAgentQ():
 
 
     def memory_replay(self):
-        for i in range(int(self.num_iter * self.replay_rate)):
+        for i in range(int(self.num_iter * self.epochs)):
             self.updateq(*self.episode_memory[randint(0, self.num_iter-1)], self.num_iter)
 
 
