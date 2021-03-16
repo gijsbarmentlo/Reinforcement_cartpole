@@ -10,7 +10,7 @@ from tqdm import tqdm
 #Dependencies
 import keras
 from keras.models import Sequential
-from keras.layers import Dense
+from keras.layers import Dense, Dropout
 from tensorflow.keras import initializers
 import tensorflow as tf
 
@@ -19,15 +19,15 @@ import tensorflow as tf
 PLOT_INTEGRATION_CST = 100
 BUCKETS = [9, 9, 30, 30]
 DISCOUNT_RATE = 0.90
-MIN_EPSILON = 0.1
-MAX_LR = 0.1
+MIN_EPSILON = 0.25
+MAX_LR = 0.05
 MIN_LR = 0.005
 DECAY = 0.7
-NUM_ITER = 10000
+NUM_ITER = 1000
 MAX_TIME = 300
-EPOCHS = 3
-TRANSMISSION_EPS = 5
-BATCH_SIZE = 32
+EPOCHS = 2
+TRANSMISSION_EPS = 6
+BATCH_SIZE = 256
 
 class CartpoleAgentNN():
     def __init__(self, buckets=BUCKETS, min_lr=MIN_LR, max_lr=MAX_LR, discount_rate=DISCOUNT_RATE,
@@ -39,7 +39,6 @@ class CartpoleAgentNN():
         self.discount_rate = discount_rate
         self.min_epsilon = min_epsilon
         self.env = gym.make('CartPole-v0')
-        self.qtable = np.zeros(tuple(buckets) + (2,))
         self.num_iter = num_iter
         self.max_time = max_time
         self.episode_duration = np.zeros(num_iter)
@@ -59,17 +58,17 @@ class CartpoleAgentNN():
 
         self.m1 = Sequential()
         self.m1.add(Dense(8, input_dim=4, activation="relu"))
-        self.m1.add(Dense(16, activation="relu"))
-        self.m1.add(Dense(32, activation="relu"))
-        self.m1.add(Dense(64, activation="relu"))
-        # self.m1.add(Dense(64, activation="relu"))
-        # self.m1.add(Dense(64, activation="relu"))
+        self.m1.add(Dropout(0.2))
+        self.m1.add(Dense(6, activation="relu"))
+        self.m1.add(Dropout(0.2))
+        self.m1.add(Dense(4, activation="relu"))
+        self.m1.add(Dropout(0.2))
         self.m1.add(Dense(2, activation="linear"))
-        self.m1.compile(loss='mse', optimizer = "adam") #  optimizer='sgd') #, metrics=['mse'])
+        self.m1.compile(loss='mse', optimizer = "adam")
 
         self.m2 = tf.keras.models.clone_model(self.m1)
 
-    def discretise(self, obs):
+    def normalise(self, obs):
         upper_bounds = [self.env.observation_space.high[0], 0.5, self.env.observation_space.high[2],
                         math.radians(50) / 1.]
         lower_bounds = [self.env.observation_space.low[0], -0.5, self.env.observation_space.low[2],
@@ -87,9 +86,6 @@ class CartpoleAgentNN():
     def get_epsilon(self, e):
         return max(self.min_epsilon, 1 - (e / (self.decay * self.num_iter)))
 
-    def get_lr(self, e):
-        return max(self.min_lr, self.max_lr * (1 - (e / (self.decay * self.num_iter))))
-
     def choose_action(self, obs, e, learn=False):
         r = random()
         if (r < self.get_epsilon(e)) and learn:
@@ -97,14 +93,14 @@ class CartpoleAgentNN():
         else:
             return np.argmax(self.m2.predict(obs)[0])
 
-
-    def learn(self, plot = False):
+    def learn(self, plot=False):
         for episode in tqdm(range(self.num_iter)):
             obs_current = np.reshape(self.env.reset(), (1, 4))
             done = False
-            t=0
+            t = 0
 
             while not done:
+                t += 1
                 self.episode_duration[episode] += 1
                 action = self.choose_action(obs_current, episode, learn=True)
                 obs_new, reward, done, info = self.env.step(action)
@@ -112,24 +108,20 @@ class CartpoleAgentNN():
                 self.update_nn(reward, obs_current, action, obs_new, t)
                 self.episode_memory.append((reward, obs_current, action, obs_new)) #TODO change data format to deque O(1) complexity instead of O(n)
                 obs_current = obs_new
-                t += 1
 
-            if t % self.batch_size !=0:
+            if t % self.batch_size != 0:
                 self.m1.fit(self.training_batch_x[0:t % self.batch_size], self.training_batch_y[0:t % self.batch_size], shuffle=False, verbose=0)
 
-            if (episode%self.transmission_eps)==0:
+            if (episode % self.transmission_eps) == 0:
                 self.m2.set_weights(self.m1.get_weights())
 
-            if plot and (episode%1000 ==0):
+            if plot and (episode%1000 == 0):
                 self.plot_learning()
                 #TODO make interactive plot
 
-        self.memory_replay() #TODO add memory replay
-
     def update_nn(self, reward, obs_current, action, obs_new, t):
-        target = reward + max(self.m2.predict(obs_new)[0]) #TODO * self.discount_rate
         y = self.m2.predict(obs_current)[0]
-        y[action] = target
+        y[action] = reward + max(self.m2.predict(obs_new)[0]) * self.discount_rate
 
         # if action == 0:
         #     y = [target, self.m2.predict(obs_current)[0][0]]
@@ -137,34 +129,28 @@ class CartpoleAgentNN():
         #     y = [self.m2.predict(obs_current)[0][1], target]
 
         self.training_batch_x[t % self.batch_size] = obs_current
-        self.training_batch_y[t % self.batch_size] = np.reshape(y, (1, 2))
+        self.training_batch_y[t % self.batch_size] = y #np.reshape(y, (1, 2))
 
         if t % self.batch_size == 0:
+            print(self.training_batch_x)
+            print(self.training_batch_y)
             self.m1.fit(self.training_batch_x, self.training_batch_y, shuffle=False, verbose=0)
-
-        #TODO add learning with remaining experiences
-
 
     def memory_replay(self):
         t = 0
         for i in tqdm(range(self.num_iter * self.epochs)):
-            self.update_nn(*self.episode_memory[randint(0, self.num_iter-1)], t)
             t += 1
-
-
-    def updateq(self, reward, obs_current, action, obs_new, episode):
-        self.qtable[obs_current][action] = (1 - self.get_lr(episode)) * self.qtable[obs_current][action] + \
-                                           self.get_lr(episode) * (reward + self.discount_rate * max(self.qtable[obs_new]))
+            self.update_nn(*self.episode_memory[randint(0,len(self.episode_memory)-1)], t)
 
 
     def show(self, episodes=10):
         for episode in range(episodes):
-            obs = tf.reshape(self.env.reset(), [1, 4])
+            obs = np.reshape(self.env.reset(), (1, 4))
             for t in range(self.max_time):
                 self.env.render()
                 action = self.choose_action(obs, episode, learn=False)
                 obs, reward, done, info = self.env.step(action)
-                obs = tf.reshape(obs, [1, 4])
+                obs = np.reshape(obs, (1, 4))
                 if done:
                     print("Episode finished after {} timesteps".format(t + 1))
                     break
