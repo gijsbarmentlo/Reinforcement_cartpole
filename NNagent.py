@@ -25,11 +25,13 @@ DECAY = 0.7
 NUM_ITER = 10000
 MAX_TIME = 300
 EPOCHS = 3
-TRANSMISSION_EPS = 30
+TRANSMISSION_EPS = 10
+LEARNING_BATCH = 32
 
 class CartpoleAgentNN():
     def __init__(self, buckets=BUCKETS, min_lr=MIN_LR, max_lr=MAX_LR, discount_rate=DISCOUNT_RATE,
-                 min_epsilon=MIN_EPSILON, decay=DECAY, num_iter=NUM_ITER, epochs=EPOCHS, max_time=MAX_TIME, transmission_eps = TRANSMISSION_EPS):
+                 min_epsilon=MIN_EPSILON, decay=DECAY, num_iter=NUM_ITER, epochs=EPOCHS, max_time=MAX_TIME,
+                 transmission_eps = TRANSMISSION_EPS, learning_batch = LEARNING_BATCH):
         self.buckets = buckets
         self.min_lr = min_lr
         self.max_lr = max_lr
@@ -50,6 +52,7 @@ class CartpoleAgentNN():
 
         # Neural networks
         self.transmission_eps = transmission_eps
+        self.learning_batch = learning_batch
 
         self.m1 = Sequential()
         self.m1.add(Dense(8, input_dim=4, activation="relu"))
@@ -97,11 +100,11 @@ class CartpoleAgentNN():
 
             while not done:
                 self.episode_duration[episode] += 1
-                action = self.choose_action(obs_current, episode, learn = True)
+                action = self.choose_action(obs_current, episode, learn=True)
                 obs_new, reward, done, info = self.env.step(action)
                 obs_new = tf.reshape(obs_new, [1, 4])
                 self.update_nn(reward, obs_current, action, obs_new, episode)
-                self.episode_memory.append((reward, obs_current, action, obs_new)) #TODO change data format to deque O(1) complexity instead of O(n)
+#                self.episode_memory.append((reward, obs_current, action, obs_new)) #TODO change data format to deque O(1) complexity instead of O(n)
                 obs_current = obs_new
 
             if (episode%self.transmission_eps)==0:
@@ -111,7 +114,7 @@ class CartpoleAgentNN():
                 self.plot_learning()
                 #TODO make interactive plot
 
-        self.memory_replay()
+        # self.memory_replay() #TODO add memory replay
 
     def update_nn(self, reward, obs_current, action, obs_new, episode):
         prediction_new = self.m2.predict(obs_new)
@@ -136,13 +139,13 @@ class CartpoleAgentNN():
 
 
     def show(self, episodes=10):
-        for i_episode in range(episodes):
-            obs = self.discretise(self.env.reset())
+        for episode in range(episodes):
+            obs = tf.reshape(self.env.reset(), [1, 4])
             for t in range(self.max_time):
                 self.env.render()
-                action = self.choose_action(obs, i_episode, learn=False)
+                action = self.choose_action(obs, episode, learn=False)
                 obs, reward, done, info = self.env.step(action)
-                obs = self.discretise(obs)
+                obs = tf.reshape(obs, [1, 4])
                 if done:
                     print("Episode finished after {} timesteps".format(t + 1))
                     break

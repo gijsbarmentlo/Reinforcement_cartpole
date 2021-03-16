@@ -25,7 +25,7 @@ def test_agent(agent):
 
 if __name__ == '__main__':
     #agent = CartpoleAgentQ(num_iter=20000)
-    agent = CartpoleAgentNN(num_iter = 1000)
+    agent = CartpoleAgentNN(num_iter = 5)
 
     agent.learn()
     agent.show(10)
