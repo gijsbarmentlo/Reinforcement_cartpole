@@ -8,17 +8,18 @@ from tqdm import tqdm
 
 PLOT_INTEGRATION_CST = 100
 
-class CartpoleAgent():
-    def __init__(self, buckets, learning_rate, discount_rate, epsilon, num_iter, max_time):
+class CartpoleAgentQ():
+    def __init__(self, buckets, learning_rate, discount_rate, min_epsilon, decay, num_iter, max_time):
         self.buckets = buckets
         self.learning_rate = learning_rate
         self.discount_rate = discount_rate
-        self.epsilon = epsilon
+        self.min_epsilon = min_epsilon
         self.env = gym.make('CartPole-v0')
         self.qtable = np.zeros(tuple(buckets) + (2,))
         self.num_iter = num_iter
         self.max_time = max_time
         self.episode_duration = np.zeros(num_iter)
+        self.decay = decay # should be between 0 and 1 #TODO assert
 
 
     def discretise(self, obs):
@@ -37,10 +38,14 @@ class CartpoleAgent():
             discretized.append(new_obs)
         return tuple(discretized)
 
+    def get_epsilon(self, e):
+        return max(self.min_epsilon, 1 - (e / (self.decay * self.num_iter)))
 
-    def choose_action(self, obs, learn=False):
+
+
+    def choose_action(self, obs, e, learn=False):
         r = random()
-        if (r < self.epsilon) and learn:
+        if (r < self.get_epsilon(e)) and learn:
             return self.env.action_space.sample()
         else:
             return np.argmax(self.qtable[obs])
@@ -52,7 +57,7 @@ class CartpoleAgent():
 
             for t in range(self.max_time):
                 self.episode_duration[episode] += 1
-                action = self.choose_action(obs_current, learn = True)
+                action = self.choose_action(obs_current, episode, learn = True)
                 obs_new, reward, done, info = self.env.step(action)
                 obs_new = self.discretise(obs_new)
                 self.updateq(reward, obs_current, action, obs_new)
@@ -74,7 +79,7 @@ class CartpoleAgent():
             obs = self.discretise(self.env.reset())
             for t in range(self.max_time):
                 self.env.render()
-                action = self.choose_action(obs, learn=False)
+                action = self.choose_action(obs, i_episode, learn=False)
                 obs, reward, done, info = self.env.step(action)
                 obs = self.discretise(obs)
                 if done:

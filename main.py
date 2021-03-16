@@ -4,13 +4,14 @@
 # Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
 
 
-from Qagent import CartpoleAgent
+from Qagent import CartpoleAgentQ
 
 # Config
 BUCKETS = [5, 7, 20, 10]
 LEARNING_RATE = 0.01
 DISCOUNT_RATE = 0.90
-EPSILON = 0.9
+MIN_EPSILON = 0.1
+DECAY = 0.8
 NUM_ITER = 300
 MAX_TIME = 220
 
@@ -35,7 +36,7 @@ def test_agent(agent):
 
 
 if __name__ == '__main__':
-    agent = CartpoleAgent(BUCKETS, LEARNING_RATE, DISCOUNT_RATE, EPSILON, num_iter=10000, max_time=MAX_TIME)
+    agent = CartpoleAgentQ(BUCKETS, LEARNING_RATE, DISCOUNT_RATE, MIN_EPSILON, DECAY, num_iter=2000, max_time=MAX_TIME)
     agent.learn()
     agent.show(10)
     agent.plot_learning()
