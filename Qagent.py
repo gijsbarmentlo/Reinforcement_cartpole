@@ -9,19 +9,21 @@ from tqdm import tqdm
 PLOT_INTEGRATION_CST = 100
 DEFAULT_DECAY = 0.7
 BUCKETS = [5, 7, 20, 10]
-LEARNING_RATE = 0.01
 DISCOUNT_RATE = 0.90
 MIN_EPSILON = 0.1
+MAX_LR = 0.1
+MIN_LR = 0.005
 DECAY = 0.8
 NUM_ITER = 300
 MAX_TIME = 300
 REPLAY_RATE = 2
 
 class CartpoleAgentQ():
-    def __init__(self, buckets=BUCKETS, learning_rate=LEARNING_RATE, discount_rate=DISCOUNT_RATE,
+    def __init__(self, buckets=BUCKETS, min_lr=MIN_LR, max_lr=MAX_LR, discount_rate=DISCOUNT_RATE,
                  min_epsilon=MIN_EPSILON, decay=DECAY, num_iter=NUM_ITER, replay_rate=REPLAY_RATE, max_time=MAX_TIME):
         self.buckets = buckets
-        self.learning_rate = learning_rate
+        self.min_lr = min_lr
+        self.max_lr = max_lr
         self.discount_rate = discount_rate
         self.min_epsilon = min_epsilon
         self.env = gym.make('CartPole-v0')
@@ -57,6 +59,8 @@ class CartpoleAgentQ():
     def get_epsilon(self, e):
         return max(self.min_epsilon, 1 - (e / (self.decay * self.num_iter)))
 
+    def get_lr(self, e):
+        return max(self.min_lr, self.max_lr * (1 - (e / (self.decay * self.num_iter))))
 
     def choose_action(self, obs, e, learn=False):
         r = random()
@@ -75,7 +79,7 @@ class CartpoleAgentQ():
                 action = self.choose_action(obs_current, episode, learn = True)
                 obs_new, reward, done, info = self.env.step(action)
                 obs_new = self.discretise(obs_new)
-                self.updateq(reward, obs_current, action, obs_new)
+                self.updateq(reward, obs_current, action, obs_new, episode)
                 self.episode_memory.append((reward, obs_current, action, obs_new))
                 obs_current = obs_new
                 if done:
@@ -91,10 +95,11 @@ class CartpoleAgentQ():
 
     def memory_replay(self):
         for i in range(int(self.num_iter * self.replay_rate)):
-            self.updateq(*self.episode_memory[randint(0, self.num_iter-1)])
+            self.updateq(*self.episode_memory[randint(0, self.num_iter-1)], self.num_iter)
 
-    def updateq(self, reward, obs_current, action, obs_new):
-        self.qtable[obs_current][action] = (1 - self.learning_rate) * self.qtable[obs_current][action] + self.learning_rate * (reward + self.discount_rate * max(self.qtable[obs_new]))
+    def updateq(self, reward, obs_current, action, obs_new, episode):
+        self.qtable[obs_current][action] = (1 - self.get_lr(episode)) * self.qtable[obs_current][action] + \
+                                           self.get_lr(episode) * (reward + self.discount_rate * max(self.qtable[obs_new]))
 
 
     def show(self, episodes=10):
@@ -118,7 +123,7 @@ class CartpoleAgentQ():
         for i in range(math.floor(self.num_iter/PLOT_INTEGRATION_CST)):
             episode_duration_avg.append(sum(self.episode_duration[PLOT_INTEGRATION_CST*i : PLOT_INTEGRATION_CST*(i+1)])/PLOT_INTEGRATION_CST)
 
-        sns.lineplot(x = range(len(self.episode_duration)), y = self.episode_duration)
+        sns.lineplot(x = range(len(episode_duration_avg)), y = episode_duration_avg)
         plt.xlabel("Episode")
         plt.ylabel("Averaged episode duration")
         plt.show()
