@@ -14,6 +14,7 @@ MIN_EPSILON = 0.1
 DECAY = 0.8
 NUM_ITER = 300
 MAX_TIME = 220
+REPLAY_RATE = 2
 
 
 def test_discretise(agent):

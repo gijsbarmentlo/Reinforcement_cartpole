@@ -1,15 +1,25 @@
 import gym
 import numpy as np
-from random import random, choice
+from random import random, randint
 import math
 import seaborn as sns
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 
 PLOT_INTEGRATION_CST = 100
+DEFAULT_DECAY = 0.7
+BUCKETS = [5, 7, 20, 10]
+LEARNING_RATE = 0.01
+DISCOUNT_RATE = 0.90
+MIN_EPSILON = 0.1
+DECAY = 0.8
+NUM_ITER = 300
+MAX_TIME = 300
+REPLAY_RATE = 2
 
 class CartpoleAgentQ():
-    def __init__(self, buckets, learning_rate, discount_rate, min_epsilon, decay, num_iter, max_time):
+    def __init__(self, buckets=BUCKETS, learning_rate=LEARNING_RATE, discount_rate=DISCOUNT_RATE,
+                 min_epsilon=MIN_EPSILON, decay=DECAY, num_iter=NUM_ITER, replay_rate=REPLAY_RATE, max_time=MAX_TIME):
         self.buckets = buckets
         self.learning_rate = learning_rate
         self.discount_rate = discount_rate
@@ -19,8 +29,14 @@ class CartpoleAgentQ():
         self.num_iter = num_iter
         self.max_time = max_time
         self.episode_duration = np.zeros(num_iter)
-        self.decay = decay # should be between 0 and 1 #TODO assert
+        if decay <= 1 and 0 <= decay:
+            self.decay = decay
+        else:
+            self.decay = DEFAULT_DECAY
 
+        #self.episode_memory = np.zeros((num_iter, 1))
+        self.episode_memory = []
+        self.replay_rate = replay_rate
 
     def discretise(self, obs):
 
@@ -42,7 +58,6 @@ class CartpoleAgentQ():
         return max(self.min_epsilon, 1 - (e / (self.decay * self.num_iter)))
 
 
-
     def choose_action(self, obs, e, learn=False):
         r = random()
         if (r < self.get_epsilon(e)) and learn:
@@ -61,6 +76,7 @@ class CartpoleAgentQ():
                 obs_new, reward, done, info = self.env.step(action)
                 obs_new = self.discretise(obs_new)
                 self.updateq(reward, obs_current, action, obs_new)
+                self.episode_memory.append((reward, obs_current, action, obs_new))
                 obs_current = obs_new
                 if done:
                     break
@@ -69,6 +85,13 @@ class CartpoleAgentQ():
                 self.plot_learning()
                 #TODO make interactive plot
 
+        self.memory_replay()
+
+
+
+    def memory_replay(self):
+        for i in range(int(self.num_iter * self.replay_rate)):
+            self.updateq(*self.episode_memory[randint(0, self.num_iter-1)])
 
     def updateq(self, reward, obs_current, action, obs_new):
         self.qtable[obs_current][action] = (1 - self.learning_rate) * self.qtable[obs_current][action] + self.learning_rate * (reward + self.discount_rate * max(self.qtable[obs_new]))
