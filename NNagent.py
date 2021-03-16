@@ -26,12 +26,12 @@ NUM_ITER = 10000
 MAX_TIME = 300
 EPOCHS = 3
 TRANSMISSION_EPS = 10
-LEARNING_BATCH = 32
+BATCH_SIZE = 32
 
 class CartpoleAgentNN():
     def __init__(self, buckets=BUCKETS, min_lr=MIN_LR, max_lr=MAX_LR, discount_rate=DISCOUNT_RATE,
                  min_epsilon=MIN_EPSILON, decay=DECAY, num_iter=NUM_ITER, epochs=EPOCHS, max_time=MAX_TIME,
-                 transmission_eps = TRANSMISSION_EPS, learning_batch = LEARNING_BATCH):
+                 transmission_eps=TRANSMISSION_EPS, batch_size=BATCH_SIZE):
         self.buckets = buckets
         self.min_lr = min_lr
         self.max_lr = max_lr
@@ -42,7 +42,7 @@ class CartpoleAgentNN():
         self.num_iter = num_iter
         self.max_time = max_time
         self.episode_duration = np.zeros(num_iter)
-        if decay <= 1 and 0 <= decay:
+        if 1 >= decay >= 0:
             self.decay = decay
         else:
             self.decay = DECAY
@@ -52,7 +52,9 @@ class CartpoleAgentNN():
 
         # Neural networks
         self.transmission_eps = transmission_eps
-        self.learning_batch = learning_batch
+        self.batch_size = batch_size
+        self.training_batch_x = np.zeros((batch_size, 4))
+        self.training_batch_y = np.zeros((batch_size, 2))
 
         self.m1 = Sequential()
         self.m1.add(Dense(8, input_dim=4, activation="relu"))
@@ -95,17 +97,21 @@ class CartpoleAgentNN():
 
     def learn(self, plot = False):
         for episode in tqdm(range(self.num_iter)):
-            obs_current = tf.reshape(self.env.reset(), [1, 4])
+            obs_current = np.reshape(self.env.reset(), (1, 4))
             done = False
+            t=0
 
             while not done:
                 self.episode_duration[episode] += 1
                 action = self.choose_action(obs_current, episode, learn=True)
                 obs_new, reward, done, info = self.env.step(action)
-                obs_new = tf.reshape(obs_new, [1, 4])
-                self.update_nn(reward, obs_current, action, obs_new, episode)
+                obs_new = np.reshape(obs_new, (1, 4))
+                self.update_nn(reward, obs_current, action, obs_new, t)
 #                self.episode_memory.append((reward, obs_current, action, obs_new)) #TODO change data format to deque O(1) complexity instead of O(n)
                 obs_current = obs_new
+                t += 1
+
+            self.m1.fit(self.training_batch_x[0:t % self.batch_size], self.training_batch_y[0:t % self.batch_size], shuffle=False, verbose=1)
 
             if (episode%self.transmission_eps)==0:
                 self.m2.set_weights(self.m1.get_weights())
@@ -116,17 +122,25 @@ class CartpoleAgentNN():
 
         # self.memory_replay() #TODO add memory replay
 
-    def update_nn(self, reward, obs_current, action, obs_new, episode):
-        prediction_new = self.m2.predict(obs_new)
-        maxQ_new = max(self.m2.predict(obs_new)[0])
-        target = reward + maxQ_new #TODO * self.discount_rate
-        if action == 0:
-            y = [target, self.m2.predict(obs_current)[0][0]]
-        else:
-            y = [self.m2.predict(obs_current)[0][1], target]
+    def update_nn(self, reward, obs_current, action, obs_new, t):
+        print(t)
+        target = reward + max(self.m2.predict(obs_new)[0]) #TODO * self.discount_rate
+        y = self.m2.predict(obs_current)[0]
+        y[action] = target
 
-        y = tf.reshape(y, [1, 2])
-        self.m1.fit(obs_current, y, shuffle = False, verbose = 0)
+        # if action == 0:
+        #     y = [target, self.m2.predict(obs_current)[0][0]]
+        # else:
+        #     y = [self.m2.predict(obs_current)[0][1], target]
+
+        self.training_batch_x[t % self.batch_size] = obs_current
+        self.training_batch_y[t % self.batch_size] = np.reshape(y, (1, 2))
+
+        if t % self.batch_size == 0:
+            self.m1.fit(self.training_batch_x, self.training_batch_y, shuffle=False, verbose=1)
+
+        #TODO add learning with remaining experiences
+
 
     def memory_replay(self):
         for i in range(int(self.num_iter * self.epochs)):
