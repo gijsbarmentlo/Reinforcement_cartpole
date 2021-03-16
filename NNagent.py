@@ -27,7 +27,7 @@ MAX_TIME = 300
 EPOCHS = 3
 TRANSMISSION_EPS = 30
 
-class NNCartpoleAgentQ():
+class CartpoleAgentNN():
     def __init__(self, buckets=BUCKETS, min_lr=MIN_LR, max_lr=MAX_LR, discount_rate=DISCOUNT_RATE,
                  min_epsilon=MIN_EPSILON, decay=DECAY, num_iter=NUM_ITER, epochs=EPOCHS, max_time=MAX_TIME, transmission_eps = TRANSMISSION_EPS):
         self.buckets = buckets
@@ -52,12 +52,12 @@ class NNCartpoleAgentQ():
         self.transmission_eps = transmission_eps
 
         self.m1 = Sequential()
-        self.m1.add(Dense(12, input_dim=4, activation="relu"))
-        self.m1.add(Dense(24, activation="relu"))
-        self.m1.add(Dense(24, activation="relu"))
-        self.m1.add(Dense(48, activation="relu"))
+        self.m1.add(Dense(8, input_dim=4, activation="relu"))
+        self.m1.add(Dense(16, activation="relu"))
+        self.m1.add(Dense(32, activation="relu"))
+        self.m1.add(Dense(64, activation="relu"))
         self.m1.add(Dense(2, activation="linear"))
-        self.m1.compile(loss='sgd', optimizer='mse', metrics=['mse'])
+        self.m1.compile(loss='mse', optimizer = "adam") #  optimizer='sgd') #, metrics=['mse'])
 
         self.m2 = tf.keras.models.clone_model(self.m1)
 
@@ -87,18 +87,19 @@ class NNCartpoleAgentQ():
         if (r < self.get_epsilon(e)) and learn:
             return self.env.action_space.sample()
         else:
-            return np.argmax(self.m2.predict(obs))
+            return np.argmax(self.m2.predict(obs)[0])
 
 
     def learn(self, plot = False):
         for episode in tqdm(range(self.num_iter)):
-            obs_current = self.env.reset()
+            obs_current = tf.reshape(self.env.reset(), [1, 4])
             done = False
 
             while not done:
                 self.episode_duration[episode] += 1
                 action = self.choose_action(obs_current, episode, learn = True)
                 obs_new, reward, done, info = self.env.step(action)
+                obs_new = tf.reshape(obs_new, [1, 4])
                 self.update_nn(reward, obs_current, action, obs_new, episode)
                 self.episode_memory.append((reward, obs_current, action, obs_new)) #TODO change data format to deque O(1) complexity instead of O(n)
                 obs_current = obs_new
@@ -113,13 +114,16 @@ class NNCartpoleAgentQ():
         self.memory_replay()
 
     def update_nn(self, reward, obs_current, action, obs_new, episode):
-        target = reward + self.discount_rate * max(self.m2.predict(obs_new))
+        prediction_new = self.m2.predict(obs_new)
+        maxQ_new = max(self.m2.predict(obs_new)[0])
+        target = reward + maxQ_new #TODO * self.discount_rate
         if action == 0:
-            target = [target, self.m2.predict(obs_current)[1]]
+            y = [target, self.m2.predict(obs_current)[0][0]]
         else:
-            target = [self.m2.predict(obs_current)[0], target]
+            y = [self.m2.predict(obs_current)[0][1], target]
 
-        self.m1.fit(obs_current, target, shuffle = False, )
+        y = tf.reshape(y, [1, 2])
+        self.m1.fit(obs_current, y, shuffle = False, verbose = 0)
 
     def memory_replay(self):
         for i in range(int(self.num_iter * self.epochs)):

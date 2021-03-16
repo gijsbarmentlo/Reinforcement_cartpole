@@ -5,7 +5,7 @@
 
 
 from Qagent import CartpoleAgentQ
-from NNagent import nn
+from NNagent import CartpoleAgentNN
 
 def test_discretise(agent):
     fake_obs = agent.env.reset()
@@ -24,10 +24,11 @@ def test_agent(agent):
     test_discretise(agent)
 
 if __name__ == '__main__':
-    # Qagent = CartpoleAgentQ(num_iter=20000)
-    # Qagent.learn()
-    # Qagent.show(10)
-    # Qagent.plot_learning()
+    #agent = CartpoleAgentQ(num_iter=20000)
+    agent = CartpoleAgentNN(num_iter = 1000)
 
-    NNagent =
+    agent.learn()
+    agent.show(10)
+    agent.plot_learning()
+
 
