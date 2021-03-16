@@ -3,7 +3,6 @@ import numpy as np
 import collections
 from random import random, randint
 import math
-from math import sqrt
 import seaborn as sns
 import matplotlib.pyplot as plt
 from tqdm import tqdm
