@@ -23,7 +23,7 @@ def test_agent(agent):
     test_discretise(agent)
 
 if __name__ == '__main__':
-    agent = CartpoleAgentQ(num_iter=5000)
+    agent = CartpoleAgentQ(num_iter=10000)
     agent.learn()
     agent.show(10)
     agent.plot_learning()

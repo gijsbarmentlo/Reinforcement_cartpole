@@ -1,5 +1,6 @@
 import gym
 import numpy as np
+import collections
 from random import random, randint
 import math
 import seaborn as sns
@@ -7,16 +8,15 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 
 PLOT_INTEGRATION_CST = 100
-DEFAULT_DECAY = 0.7
-BUCKETS = [5, 7, 20, 10]
+BUCKETS = [5, 7, 10, 10]
 DISCOUNT_RATE = 0.90
 MIN_EPSILON = 0.1
 MAX_LR = 0.1
 MIN_LR = 0.005
-DECAY = 0.8
-NUM_ITER = 300
+DECAY = 0.7
+NUM_ITER = 10000
 MAX_TIME = 300
-REPLAY_RATE = 2
+REPLAY_RATE = 5
 
 class CartpoleAgentQ():
     def __init__(self, buckets=BUCKETS, min_lr=MIN_LR, max_lr=MAX_LR, discount_rate=DISCOUNT_RATE,
@@ -34,9 +34,9 @@ class CartpoleAgentQ():
         if decay <= 1 and 0 <= decay:
             self.decay = decay
         else:
-            self.decay = DEFAULT_DECAY
+            self.decay = DECAY
 
-        #self.episode_memory = np.zeros((num_iter, 1))
+        self.memory_deque = collections.deque()
         self.episode_memory = []
         self.replay_rate = replay_rate
 
@@ -96,6 +96,10 @@ class CartpoleAgentQ():
     def memory_replay(self):
         for i in range(int(self.num_iter * self.replay_rate)):
             self.updateq(*self.episode_memory[randint(0, self.num_iter-1)], self.num_iter)
+
+    def memory_replay_deque(self):
+        for i in range(int(self.num_iter * self.replay_rate)):
+
 
     def updateq(self, reward, obs_current, action, obs_new, episode):
         self.qtable[obs_current][action] = (1 - self.get_lr(episode)) * self.qtable[obs_current][action] + \
