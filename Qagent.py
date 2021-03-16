@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 
 PLOT_INTEGRATION_CST = 100
-BUCKETS = [5, 7, 10, 10]
+BUCKETS = [7, 7, 20, 20]
 DISCOUNT_RATE = 0.90
 MIN_EPSILON = 0.1
 MAX_LR = 0.1
@@ -16,7 +16,7 @@ MIN_LR = 0.005
 DECAY = 0.7
 NUM_ITER = 10000
 MAX_TIME = 300
-REPLAY_RATE = 5
+REPLAY_RATE = 3
 
 class CartpoleAgentQ():
     def __init__(self, buckets=BUCKETS, min_lr=MIN_LR, max_lr=MAX_LR, discount_rate=DISCOUNT_RATE,
@@ -36,7 +36,6 @@ class CartpoleAgentQ():
         else:
             self.decay = DECAY
 
-        self.memory_deque = collections.deque()
         self.episode_memory = []
         self.replay_rate = replay_rate
 
@@ -80,7 +79,7 @@ class CartpoleAgentQ():
                 obs_new, reward, done, info = self.env.step(action)
                 obs_new = self.discretise(obs_new)
                 self.updateq(reward, obs_current, action, obs_new, episode)
-                self.episode_memory.append((reward, obs_current, action, obs_new))
+                self.episode_memory.append((reward, obs_current, action, obs_new)) #TODO change data fornat to deque O(1) complexity instead of O(n)
                 obs_current = obs_new
                 if done:
                     break
@@ -92,13 +91,9 @@ class CartpoleAgentQ():
         self.memory_replay()
 
 
-
     def memory_replay(self):
         for i in range(int(self.num_iter * self.replay_rate)):
             self.updateq(*self.episode_memory[randint(0, self.num_iter-1)], self.num_iter)
-
-    def memory_replay_deque(self):
-        for i in range(int(self.num_iter * self.replay_rate)):
 
 
     def updateq(self, reward, obs_current, action, obs_new, episode):
