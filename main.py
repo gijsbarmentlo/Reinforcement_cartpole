@@ -6,6 +6,7 @@
 
 from Qagent import CartpoleAgentQ
 from NNagent import CartpoleAgentNN
+import pickle
 
 def test_discretise(agent):
     fake_obs = agent.env.reset()
@@ -25,10 +26,20 @@ def test_agent(agent):
 
 if __name__ == '__main__':
     #agent = CartpoleAgentQ(num_iter=20000)
-    agent = CartpoleAgentNN(num_iter = 5)
+    agent = CartpoleAgentNN(num_iter = 25)
+
+
 
     agent.learn()
     agent.show(10)
-    agent.plot_learning()
+
+    # agent.show(10)
+    #
+    # agent.show(10)
+    # with open('NNagent', 'wb') as file:
+    #     pickle.dump(agent, file)
+
+
+    # agent.plot_learning()
 
 

@@ -15,6 +15,7 @@ from tensorflow.keras import initializers
 import tensorflow as tf
 
 
+
 PLOT_INTEGRATION_CST = 100
 BUCKETS = [9, 9, 30, 30]
 DISCOUNT_RATE = 0.90
@@ -25,7 +26,7 @@ DECAY = 0.7
 NUM_ITER = 10000
 MAX_TIME = 300
 EPOCHS = 3
-TRANSMISSION_EPS = 10
+TRANSMISSION_EPS = 5
 BATCH_SIZE = 32
 
 class CartpoleAgentNN():
@@ -61,6 +62,8 @@ class CartpoleAgentNN():
         self.m1.add(Dense(16, activation="relu"))
         self.m1.add(Dense(32, activation="relu"))
         self.m1.add(Dense(64, activation="relu"))
+        # self.m1.add(Dense(64, activation="relu"))
+        # self.m1.add(Dense(64, activation="relu"))
         self.m1.add(Dense(2, activation="linear"))
         self.m1.compile(loss='mse', optimizer = "adam") #  optimizer='sgd') #, metrics=['mse'])
 
@@ -107,11 +110,12 @@ class CartpoleAgentNN():
                 obs_new, reward, done, info = self.env.step(action)
                 obs_new = np.reshape(obs_new, (1, 4))
                 self.update_nn(reward, obs_current, action, obs_new, t)
-#                self.episode_memory.append((reward, obs_current, action, obs_new)) #TODO change data format to deque O(1) complexity instead of O(n)
+                self.episode_memory.append((reward, obs_current, action, obs_new)) #TODO change data format to deque O(1) complexity instead of O(n)
                 obs_current = obs_new
                 t += 1
 
-            self.m1.fit(self.training_batch_x[0:t % self.batch_size], self.training_batch_y[0:t % self.batch_size], shuffle=False, verbose=1)
+            if t % self.batch_size !=0:
+                self.m1.fit(self.training_batch_x[0:t % self.batch_size], self.training_batch_y[0:t % self.batch_size], shuffle=False, verbose=0)
 
             if (episode%self.transmission_eps)==0:
                 self.m2.set_weights(self.m1.get_weights())
@@ -120,10 +124,9 @@ class CartpoleAgentNN():
                 self.plot_learning()
                 #TODO make interactive plot
 
-        # self.memory_replay() #TODO add memory replay
+        self.memory_replay() #TODO add memory replay
 
     def update_nn(self, reward, obs_current, action, obs_new, t):
-        print(t)
         target = reward + max(self.m2.predict(obs_new)[0]) #TODO * self.discount_rate
         y = self.m2.predict(obs_current)[0]
         y[action] = target
@@ -137,14 +140,16 @@ class CartpoleAgentNN():
         self.training_batch_y[t % self.batch_size] = np.reshape(y, (1, 2))
 
         if t % self.batch_size == 0:
-            self.m1.fit(self.training_batch_x, self.training_batch_y, shuffle=False, verbose=1)
+            self.m1.fit(self.training_batch_x, self.training_batch_y, shuffle=False, verbose=0)
 
         #TODO add learning with remaining experiences
 
 
     def memory_replay(self):
-        for i in range(int(self.num_iter * self.epochs)):
-            self.updateq(*self.episode_memory[randint(0, self.num_iter-1)], self.num_iter)
+        t = 0
+        for i in tqdm(range(self.num_iter * self.epochs)):
+            self.update_nn(*self.episode_memory[randint(0, self.num_iter-1)], t)
+            t += 1
 
 
     def updateq(self, reward, obs_current, action, obs_new, episode):
