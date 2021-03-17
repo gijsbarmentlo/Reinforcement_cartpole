@@ -26,7 +26,7 @@ def test_agent(agent):
 
 if __name__ == '__main__':
     #agent = CartpoleAgentQ(num_iter=20000)
-    agent = CartpoleAgentNN(num_iter = 30)
+    agent = CartpoleAgentNN(num_iter = 100)
 
 
 
@@ -35,9 +35,6 @@ if __name__ == '__main__':
     agent.memory_replay()
     agent.show(10)
 
-    # agent.show(10)
-    #
-    # agent.show(10)
     # with open('NNagent', 'wb') as file:
     #     pickle.dump(agent, file)
 
