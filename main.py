@@ -29,16 +29,19 @@ if __name__ == '__main__':
     agent = CartpoleAgentNN(num_iter = 100)
 
 
+    for i in range(10):
+        print(i)
+        agent.learn()
+        agent.show(3)
 
-    agent.learn()
-    agent.show(10)
-    agent.memory_replay()
-    agent.show(10)
+    agent.plot_learning()
+
+#    agent.memory_replay()
+
 
     # with open('NNagent', 'wb') as file:
     #     pickle.dump(agent, file)
 
 
-    # agent.plot_learning()
 
 

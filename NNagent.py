@@ -19,8 +19,8 @@ from keras.optimizers import Adam
 
 PLOT_INTEGRATION_CST = 100
 DISCOUNT_RATE = 0.90
-MIN_EPSILON = 0.15
-EPSILON_DECAY = 0.98
+MIN_EPSILON = 0.05
+EPSILON_DECAY = 0.995
 ALPHA = 0.01
 ALPHA_DECAY = 0.01
 DECAY = 0.7
@@ -75,7 +75,8 @@ class CartpoleAgentNN():
         # self.prediction_model.add(Dense(2, activation="linear"))
         # self.prediction_model.compile(loss='mse', optimizer="adam")
 
-        #self.learning_model = tf.keras.models.clone_model(self.learning_model)
+        self.prediction_model = tf.keras.models.clone_model(self.learning_model)
+        self.prediction_model.compile(loss='mse', optimizer=Adam(lr=alpha, decay=alpha_decay))
 
     def normalise(self, obs): #TODO implement normalise and use kill angle as max angle
         upper_bounds = [self.env.observation_space.high[0], 0.5, self.env.observation_space.high[2],
@@ -97,10 +98,11 @@ class CartpoleAgentNN():
 
     def choose_action(self, obs, e, learn=False):
         r = random()
-        if (r < self.epsilon) and learn:
-            return self.env.action_space.sample()
-        else:
-            return np.argmax(self.learning_model.predict(obs)[0])
+        # if (r < self.epsilon) and learn:
+        #     return self.env.action_space.sample()
+        # else:
+        #     return np.argmax(self.learning_model.predict(obs)[0])
+        return self.env.action_space.sample() if (r < self.epsilon) and learn else np.argmax(self.learning_model.predict(obs))
 
     def memory_learn(self):
         x_batch, y_batch = [], []
@@ -108,22 +110,22 @@ class CartpoleAgentNN():
         for reward, obs_current, action, obs_new, done in minibatch:
             y = self.learning_model.predict(obs_current)[0]
             y[action] = reward + max(self.learning_model.predict(obs_new)[0]) * self.discount_rate if done else reward
-            x_batch.append(obs_current)
+            x_batch.append(obs_current[0])
             y_batch.append(y)
-            self.learning_model.fit(np.reshape(x_batch, (len(minibatch), 4)), np.reshape(y_batch, (len(minibatch), 2)), shuffle=False, verbose=0)
 
+        self.learning_model.fit(np.reshape(x_batch, (len(x_batch), 4)), np.reshape(y_batch, (len(x_batch), 2)),batch_size=len(x_batch), verbose=0)
         self.epsilon = max(self.min_epsilon, self.epsilon * self.epsilon_decay)
 
     def learn(self, plot=False):
         for episode in tqdm(range(self.num_iter)):
-            obs_current = np.reshape(self.env.reset(), (1, 4))
+            obs_current = np.reshape(self.env.reset(), [1, 4])
             done = False
             t = 0
             while not done:
                 t += 1
                 action = self.choose_action(obs_current, episode, learn=True)
                 obs_new, reward, done, info = self.env.step(action)
-                obs_new = np.reshape(obs_new, (1, 4))
+                obs_new = np.reshape(obs_new, [1, 4])
                 # self.update_nn(reward, obs_current, action, obs_new, t)
                 self.memory.append((reward, obs_current, action, obs_new, done)) #TODO change data format to deque O(1) complexity instead of O(n)
                 obs_current = obs_new
@@ -148,7 +150,7 @@ class CartpoleAgentNN():
         y[action] = reward + max(self.learning_model.predict(obs_new)[0]) * self.discount_rate
 
         self.training_batch_x[t % self.batch_size] = obs_current
-        self.training_batch_y[t % self.batch_size] = y #np.reshape(y, (1, 2))
+        self.training_batch_y[t % self.batch_size] = np.reshape(y, [1, 2])
 
         if t % self.batch_size == 0: #self.batch_size - 1: #TODO read through indices and check
             self.learning_model.fit(self.training_batch_x, self.training_batch_y, shuffle=False, verbose=0)
@@ -180,12 +182,12 @@ class CartpoleAgentNN():
 
     def show(self, episodes=10):
         for episode in range(episodes):
-            obs = np.reshape(self.env.reset(), (1, 4))
+            obs = np.reshape(self.env.reset(), [1, 4])
             for t in range(self.max_time):
                 self.env.render()
                 action = self.choose_action(obs, episode, learn=False)
                 obs, reward, done, info = self.env.step(action)
-                obs = np.reshape(obs, (1, 4))
+                obs = np.reshape(obs, [1, 4])
                 if done:
                     print("Episode finished after {} timesteps".format(t + 1))
                     break
@@ -197,9 +199,9 @@ class CartpoleAgentNN():
         """
         episode_duration_avg = []
         for i in range(math.floor(self.num_iter/PLOT_INTEGRATION_CST)):
-            episode_duration_avg.append(sum(self.episode_duration[PLOT_INTEGRATION_CST*i : PLOT_INTEGRATION_CST*(i+1)])/PLOT_INTEGRATION_CST)
+            episode_duration_avg.append(sum(self.episode_duration[PLOT_INTEGRATION_CST*i:PLOT_INTEGRATION_CST*(i+1)])/PLOT_INTEGRATION_CST)
 
-        sns.lineplot(x = range(len(episode_duration_avg)), y = episode_duration_avg)
+        sns.lineplot(x=range(len(episode_duration_avg)), y=episode_duration_avg)
         plt.xlabel("Episode")
         plt.ylabel("Averaged episode duration")
         plt.show()
