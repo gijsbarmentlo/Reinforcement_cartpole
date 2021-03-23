@@ -102,7 +102,7 @@ class CartpoleAgentNN():
         #     return self.env.action_space.sample()
         # else:
         #     return np.argmax(self.learning_model.predict(obs)[0])
-        return self.env.action_space.sample() if (r < self.epsilon) and learn else np.argmax(self.learning_model.predict(obs))
+        return self.env.action_space.sample() if (r < self.epsilon) and learn else np.argmax(self.prediction_model.predict(obs))
 
     def memory_learn(self):
         x_batch, y_batch = [], []
@@ -116,7 +116,7 @@ class CartpoleAgentNN():
         self.learning_model.fit(np.reshape(x_batch, (len(x_batch), 4)), np.reshape(y_batch, (len(x_batch), 2)),batch_size=len(x_batch), verbose=0)
         self.epsilon = max(self.min_epsilon, self.epsilon * self.epsilon_decay)
 
-    def learn(self, plot=False):
+    def run(self, plot=False):
         for episode in tqdm(range(self.num_iter)):
             obs_current = np.reshape(self.env.reset(), [1, 4])
             done = False
@@ -126,7 +126,6 @@ class CartpoleAgentNN():
                 action = self.choose_action(obs_current, episode, learn=True)
                 obs_new, reward, done, info = self.env.step(action)
                 obs_new = np.reshape(obs_new, [1, 4])
-                # self.update_nn(reward, obs_current, action, obs_new, t)
                 self.memory.append((reward, obs_current, action, obs_new, done)) #TODO change data format to deque O(1) complexity instead of O(n)
                 obs_current = obs_new
 
@@ -172,12 +171,13 @@ class CartpoleAgentNN():
 
         return reward
 
-    # def memory_replay(self):
-    #     t = 0
-    #     for i in tqdm(range(self.num_iter * self.epochs)):
-    #         t += 1
-    #         self.update_nn(*self.memory[randint(0, len(self.memory) - 1)], t)
-    #         #TODO add backprop for leftover %batchsize
+    def memory_replay(self):
+        t = 0
+        print("starting memory replay")
+        for i in tqdm(range(self.num_iter * self.epochs)):
+            t += 1
+            self.update_nn(*self.memory[randint(0, len(self.memory) - 1)], t)
+            #TODO add backprop for leftover %batchsize
 
 
     def show(self, episodes=10):

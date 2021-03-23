@@ -7,6 +7,9 @@
 from Qagent import CartpoleAgentQ
 from NNagent import CartpoleAgentNN
 import pickle
+import tensorflow as tf
+import warnings
+warnings.filterwarnings("ignore")
 
 def test_discretise(agent):
     fake_obs = agent.env.reset()
@@ -26,13 +29,15 @@ def test_agent(agent):
 
 if __name__ == '__main__':
     #agent = CartpoleAgentQ(num_iter=20000)
+
+    #tf.config.list_physical_devices
     agent = CartpoleAgentNN(num_iter = 100)
 
 
     for i in range(10):
         print(i)
-        agent.learn()
-        agent.show(3)
+        agent.run()
+        agent.show(10)
 
     agent.plot_learning()
 
