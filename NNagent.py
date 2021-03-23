@@ -48,8 +48,8 @@ class CartpoleAgentNN():
         else:
             self.decay = DECAY
 
-        self.memory = deque(maxlen=self.num_iter*200)
-        self.epochs = int(epochs)
+        self.memory = deque() #(maxlen=self.num_iter*200)
+        self.epochs = epochs
 
         # Neural networks
         self.transmission_eps = transmission_eps
@@ -62,18 +62,6 @@ class CartpoleAgentNN():
         self.learning_model.add(Dense(48, activation='tanh'))
         self.learning_model.add(Dense(2, activation='linear'))
         self.learning_model.compile(loss='mse', optimizer=Adam(lr=alpha, decay=alpha_decay))
-
-        # self.prediction_model = Sequential()
-        # self.prediction_model.add(Dense(8, input_dim=4, activation="relu"))
-        # self.prediction_model.add(Dropout(0.2))
-        # self.prediction_model.add(Dense(8, activation="relu"))
-        # self.prediction_model.add(Dropout(0.2))
-        # self.prediction_model.add(Dense(6, activation="relu"))
-        # self.prediction_model.add(Dropout(0.2))
-        # self.prediction_model.add(Dense(4, activation="relu"))
-        # self.prediction_model.add(Dropout(0.2))
-        # self.prediction_model.add(Dense(2, activation="linear"))
-        # self.prediction_model.compile(loss='mse', optimizer="adam")
 
         self.prediction_model = tf.keras.models.clone_model(self.learning_model)
         self.prediction_model.compile(loss='mse', optimizer=Adam(lr=alpha, decay=alpha_decay))
@@ -97,24 +85,42 @@ class CartpoleAgentNN():
         return max(self.min_epsilon, 1 - (episode / (self.decay * self.num_iter)))
 
     def choose_action(self, obs, e, learn=False):
-        r = random()
-        # if (r < self.epsilon) and learn:
-        #     return self.env.action_space.sample()
-        # else:
-        #     return np.argmax(self.learning_model.predict(obs)[0])
-        return self.env.action_space.sample() if (r < self.epsilon) and learn else np.argmax(self.prediction_model.predict(obs))
+        return self.env.action_space.sample() if (random() < self.epsilon) and learn else np.argmax(self.prediction_model.predict(obs))
 
-    def memory_learn(self):
+    def memory_learn(self, t):
+        # x_batch, y_batch = [], []
+        # minibatch = sample(self.memory, min(len(self.memory), self.batch_size))
+        # for reward, obs_current, action, obs_new, done in minibatch:
+        #     y = self.prediction_model.predict(obs_current)[0]
+        #     y[action] = reward + max(self.prediction_model.predict(obs_new)[0]) * self.discount_rate if done else reward
+        #     x_batch.append(obs_current[0])
+        #     y_batch.append(y)
+
+        # temp_memory = self.memory.copy()
+        # x_batch, y_batch = [], []
+        # for i in range(min(len(self.memory), self.batch_size)):
+        #     reward, obs_current, action, obs_new, done = temp_memory.pop()
+        #     y = self.prediction_model.predict(obs_current)[0]
+        #     y[action] = reward + max(self.prediction_model.predict(obs_new)[0]) * self.discount_rate if done else reward
+        #     x_batch.append(obs_current[0])
+        #     y_batch.append(y)
+        #
+        # self.learning_model.fit(np.reshape(x_batch, (len(x_batch), 4)), np.reshape(y_batch, (len(x_batch), 2)), batch_size=len(x_batch), verbose=0)
+        # self.epsilon = max(self.min_epsilon, self.epsilon * self.epsilon_decay)
+
         x_batch, y_batch = [], []
-        minibatch = sample(self.memory, min(len(self.memory), self.batch_size))
-        for reward, obs_current, action, obs_new, done in minibatch:
-            y = self.learning_model.predict(obs_current)[0]
-            y[action] = reward + max(self.learning_model.predict(obs_new)[0]) * self.discount_rate if done else reward
+        for i in range(max(t, self.batch_size)):
+            reward, obs_current, action, obs_new, done = self.memory.pop()
+            self.memory.appendleft((reward, obs_current, action, obs_new, done))
+            y = self.prediction_model.predict(obs_current)[0]
+            y[action] = reward + max(self.prediction_model.predict(obs_new)[0]) * self.discount_rate if done else reward
             x_batch.append(obs_current[0])
             y_batch.append(y)
 
-        self.learning_model.fit(np.reshape(x_batch, (len(x_batch), 4)), np.reshape(y_batch, (len(x_batch), 2)),batch_size=len(x_batch), verbose=0)
+        self.learning_model.fit(np.reshape(x_batch, (len(x_batch), 4)), np.reshape(y_batch, (len(x_batch), 2)),
+                                batch_size=self.batch_size, verbose=0)
         self.epsilon = max(self.min_epsilon, self.epsilon * self.epsilon_decay)
+
 
     def run(self, plot=False):
         for episode in tqdm(range(self.num_iter)):
@@ -126,40 +132,25 @@ class CartpoleAgentNN():
                 action = self.choose_action(obs_current, episode, learn=True)
                 obs_new, reward, done, info = self.env.step(action)
                 obs_new = np.reshape(obs_new, [1, 4])
-                self.memory.append((reward, obs_current, action, obs_new, done)) #TODO change data format to deque O(1) complexity instead of O(n)
+                self.memory.append((reward, obs_current, action, obs_new, done))
                 obs_current = obs_new
 
             self.episode_duration[episode] = t
-            self.memory_learn()
+            self.memory_learn(t)
 
-            # if t % self.batch_size != 0: #TODO change condition
-            #     self.learning_model.fit(self.training_batch_x[0:t % self.batch_size], self.training_batch_y[0:t % self.batch_size], shuffle=False, verbose=0)
-
-            # if (episode % self.transmission_eps) == 0:
-            #     self.prediction_model.set_weights(self.learning_model.get_weights())
+            if (episode % self.transmission_eps) == self.transmission_eps:
+                self.prediction_model.set_weights(self.learning_model.get_weights())
 
             if plot and (episode%1000 == 0):
                 self.plot_learning()
                 #TODO make interactive plot
-
-    def update_nn(self, reward, obs_current, action, obs_new, t):
-        reward = self.optimise_reward(reward, obs_current)
-
-        y = self.learning_model.predict(obs_current)[0]
-        y[action] = reward + max(self.learning_model.predict(obs_new)[0]) * self.discount_rate
-
-        self.training_batch_x[t % self.batch_size] = obs_current
-        self.training_batch_y[t % self.batch_size] = np.reshape(y, [1, 2])
-
-        if t % self.batch_size == 0: #self.batch_size - 1: #TODO read through indices and check
-            self.learning_model.fit(self.training_batch_x, self.training_batch_y, shuffle=False, verbose=0)
 
     def optimise_reward(self, reward, obs):
         #punish if loss
         reward = -10 if reward == 0 else reward
         # self.theta_threshold_radians = 12 * 2 * math.pi / 360
         # self.x_threshold = 2.4
-        if   abs(obs[0, 3]) < 8 * 2 * math.pi / 360:
+        if abs(obs[0, 3]) < 8 * 2 * math.pi / 360:
             reward += 10
             if abs(obs[0 ,3]) < 4 * 2 * math.pi / 360:
                 reward += 10
@@ -168,16 +159,16 @@ class CartpoleAgentNN():
             reward += 10
             if abs(obs[0, 0]) < 0.8:
                 reward += 10
-
         return reward
 
-    def memory_replay(self):
-        t = 0
-        print("starting memory replay")
-        for i in tqdm(range(self.num_iter * self.epochs)):
-            t += 1
-            self.update_nn(*self.memory[randint(0, len(self.memory) - 1)], t)
-            #TODO add backprop for leftover %batchsize
+    # def memory_replay(self):
+    #     print("starting memory replay")
+    #     array_memory = np.asarray(self.memory)
+    #     training_batch_x = np.zeros((self.batch_size, 4))
+    #     training_batch_y = np.zeros((self.batch_size, 2))
+    #
+    #     for i in tqdm(range(self.epochs)):
+    #         self.memory_learn()
 
 
     def show(self, episodes=10):
