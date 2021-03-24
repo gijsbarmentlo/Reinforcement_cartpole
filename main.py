@@ -37,9 +37,11 @@ if __name__ == '__main__':
     for i in range(10):
         print(i)
         agent.run()
-        agent.show(10)
+        agent.show(5)
+        agent.memory_replay()
+        agent.show(5)
 
-    agent.plot_learning()
+    #agent.plot_learning()
 
 #    agent.memory_replay()
 

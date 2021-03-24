@@ -161,14 +161,41 @@ class CartpoleAgentNN():
                 reward += 10
         return reward
 
-    # def memory_replay(self):
-    #     print("starting memory replay")
-    #     array_memory = np.asarray(self.memory)
-    #     training_batch_x = np.zeros((self.batch_size, 4))
-    #     training_batch_y = np.zeros((self.batch_size, 2))
-    #
-    #     for i in tqdm(range(self.epochs)):
-    #         self.memory_learn()
+    def memory_replay(self):
+        print("starting memory replay")
+        training_batch_x = np.zeros((self.batch_size, 4))
+        training_batch_y = np.zeros((self.batch_size, 2))
+
+        for epoch in range(self.epochs):
+            temp_memory = self.memory.copy()
+            x_batch, y_batch = [], []
+
+            for i in range(len(self.memory)):
+                #Generate training batch from memory
+                reward, obs_current, action, obs_new, done = temp_memory.pop()
+                y = self.prediction_model.predict(obs_current)[0]
+                y[action] = reward + max(self.prediction_model.predict(obs_new)[0]) * self.discount_rate if done else reward
+                x_batch.append(obs_current[0])
+                y_batch.append(y)
+
+                #Train model when x_batch has reached batch_size
+                if i%self.batch_size == self.batch_size:
+                    self.learning_model.fit(np.reshape(x_batch, (len(x_batch), 4)),
+                                            np.reshape(y_batch, (len(x_batch), 2)), batch_size=self.batch_size,
+                                            verbose=0)
+                    x_batch, y_batch = [], []
+
+                #Update prediction model after transmission_eps batches
+                if int(i/self.batch_size) == self.transmission_eps:
+                    self.prediction_model.set_weights(self.learning_model.get_weights())
+
+            #train onr remainder of x_batch and y_batch upon exiting the loop and make prediction model catch up
+            self.learning_model.fit(np.reshape(x_batch, (len(x_batch), 4)), np.reshape(y_batch, (len(x_batch), 2)), batch_size=self.batch_size, verbose=0)
+            self.prediction_model.set_weights(self.learning_model.get_weights())
+
+
+
+
 
 
     def show(self, episodes=10):
