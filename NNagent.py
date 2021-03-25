@@ -8,14 +8,10 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 
 #Dependencies
-import keras
 from keras.models import Sequential
-from keras.layers import Dense, Dropout
-from tensorflow.keras import initializers
+from keras.layers import Dense
 import tensorflow as tf
 from keras.optimizers import Adam
-
-
 
 PLOT_INTEGRATION_CST = 10
 DISCOUNT_RATE = 0.90
@@ -73,25 +69,6 @@ class CartpoleAgentNN():
         return self.env.action_space.sample() if (random() < self.epsilon) and learn else np.argmax(self.prediction_model.predict(obs))
 
     def memory_learn(self, t):
-        # x_batch, y_batch = [], []
-        # minibatch = sample(self.memory, min(len(self.memory), self.batch_size))
-        # for reward, obs_current, action, obs_new, done in minibatch:
-        #     y = self.prediction_model.predict(obs_current)[0]
-        #     y[action] = reward + max(self.prediction_model.predict(obs_new)[0]) * self.discount_rate if done else reward
-        #     x_batch.append(obs_current[0])
-        #     y_batch.append(y)
-
-        # temp_memory = self.memory.copy()
-        # x_batch, y_batch = [], []
-        # for i in range(min(len(self.memory), self.batch_size)):
-        #     reward, obs_current, action, obs_new, done = temp_memory.pop()
-        #     y = self.prediction_model.predict(obs_current)[0]
-        #     y[action] = reward + max(self.prediction_model.predict(obs_new)[0]) * self.discount_rate if done else reward
-        #     x_batch.append(obs_current[0])
-        #     y_batch.append(y)
-        #
-        # self.learning_model.fit(np.reshape(x_batch, (len(x_batch), 4)), np.reshape(y_batch, (len(x_batch), 2)), batch_size=len(x_batch), verbose=0)
-        # self.epsilon = max(self.min_epsilon, self.epsilon * self.epsilon_decay)
 
         x_batch, y_batch = [], []
         for i in range(max(t, self.batch_size)):
@@ -129,7 +106,6 @@ class CartpoleAgentNN():
 
 
     def optimise_reward(self, reward, obs):
-        #punish if loss
         reward = -10 if reward == 0 else reward
         # self.theta_threshold_radians = 12 * 2 * math.pi / 360
         # self.x_threshold = 2.4

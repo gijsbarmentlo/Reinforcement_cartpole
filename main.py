@@ -6,8 +6,7 @@
 
 from Qagent import CartpoleAgentQ
 from NNagent import CartpoleAgentNN
-import pickle
-import tensorflow as tf
+
 import warnings
 warnings.filterwarnings("ignore")
 
